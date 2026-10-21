@@ -1,4 +1,3 @@
-
 import { db } from './firebase-config.js';
 import { collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -152,7 +151,8 @@ function renderServices() {
       <div>
         <h3 class="font-bold text-lg text-slate-900 mb-2">${title}</h3>
         <p class="text-cyan-600 font-bold mb-4">${priceText}</p>
-        <div id="photos-${service.id}" class="grid grid-cols-3 gap-2 mb-4"></div>
+        <!-- Лента с эффектом карусели: 1 среднее фото + виднеющийся край следующего -->
+        <div id="photos-${service.id}" class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none" style="scroll-snap-type: x mandatory;"></div>
       </div>
       
       ${isMasterLoggedIn ? `
@@ -171,7 +171,7 @@ function renderServices() {
   });
 }
 
-// Загрузка фото с возможностью удаления для мастера
+// Загрузка фото в виде карусели с надписью +N на первом фото и кнопкой удаления
 async function loadServicePhotos(serviceId) {
   try {
     const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
@@ -190,19 +190,34 @@ async function loadServicePhotos(serviceId) {
       }
     });
 
+    if (servicePhotosList.length === 0) {
+      photoContainer.style.display = 'none';
+      return;
+    } else {
+      photoContainer.style.display = 'flex';
+    }
+
     photoDocs.forEach((item, index) => {
       const wrapper = document.createElement('div');
-      wrapper.className = "relative group";
+      // Размер: первая фото средняя (w-48), остальные видны краем (flex-shrink-0)
+      wrapper.className = "relative flex-shrink-0 w-48 h-32 scroll-snap-align-start";
 
       const img = document.createElement('img');
       img.src = item.url;
-      img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
+      img.className = "w-full h-full object-cover rounded-lg shadow-sm border cursor-pointer hover:opacity-90 transition";
       img.onclick = () => window.openGallery(servicePhotosList, index);
       wrapper.appendChild(img);
 
-      // Если мастер вошел, показываем крестик удаления прямо на фото
+      // Если это первая фотография и есть другие фото, показываем плашку "+N"
+      if (index === 0 && servicePhotosList.length > 1) {
+        const badge = document.createElement('div');
+        badge.className = "absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center pointer-events-none";
+        badge.innerHTML = `<span class="text-white text-lg font-bold bg-black/60 px-3 py-1 rounded-full shadow">+${servicePhotosList.length - 1}</span>`;
+        wrapper.appendChild(badge);
+      }
+
+      // Кнопка удаления для мастера
       if (isMasterLoggedIn) {
-        const deleteBtn = document.createElement('button0'); // создаем кнопку удаления
         const btn = document.createElement('button');
         btn.innerHTML = "&times;";
         btn.className = "absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow font-bold z-10";
@@ -212,7 +227,7 @@ async function loadServicePhotos(serviceId) {
           if (confirm("Видалити це фото?")) {
             try {
               await deleteDoc(doc(db, `service_${serviceId}`, item.id));
-              location.reload(); // Перезагрузка страницы после удаления
+              location.reload();
             } catch (err) {
               alert("Помилка видалення: " + err.message);
             }
@@ -228,7 +243,7 @@ async function loadServicePhotos(serviceId) {
   }
 }
 
-// Сжатие картинки
+// Сжатие изображения
 function compressImage(file, callback) {
   const reader = new FileReader();
   reader.onload = function(event) {
@@ -260,7 +275,7 @@ function compressImage(file, callback) {
   reader.readAsDataURL(file);
 }
 
-// Загрузка фото с автоматической перезагрузкой страницы
+// Загрузка фото с авто-перезагрузкой
 window.uploadPhotoToService = async (serviceId) => {
   const fileInput = document.getElementById(`file-${serviceId}`);
   const file = fileInput.files[0];
@@ -272,8 +287,6 @@ window.uploadPhotoToService = async (serviceId) => {
         url: compressedUrl,
         createdAt: new Date()
       });
-
-      // Перезагружаем страницу, чтобы файл сразу остался на месте
       location.reload();
     } catch (e) {
       alert('Помилка збереження в базу: ' + e.message);
