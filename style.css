@@ -1,0 +1,6 @@
+/* Базовые стили для сайта сантехники */
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+}
