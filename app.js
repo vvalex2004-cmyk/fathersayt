@@ -1,5 +1,5 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentLang = 'uk';
 const MASTER_PASSWORDS = ["5399", "225399"];
@@ -79,7 +79,7 @@ const uiTexts = {
     modalReviewTitle: "Jūsų Atsiliepimas",
     namePlaceholder: "Jūsų vardas",
     commentPlaceholder: "Atsiliepimo tekstas...",
-    sendBtn: "Siųsti",
+    sendBtn: "Siūsti",
     cancelBtn: "Atšaukti",
     reviewsWord: "atsiliepimų"
   }
@@ -95,7 +95,7 @@ const servicesData = [
   { id: "drain_sewer", uk: "Монтаж мереж зливної каналізації", en: "Storm drainage networks installation", lt: "Lietaus kanalizacijos tinklų montavimas", price: { uk: "від 300 €", en: "from 300 €", lt: "nuo 300 €" } },
   { id: "heating_design", uk: "Проектування систем опалення", en: "Heating systems design", lt: "Šildymo sistemų projektavimas", price: { uk: "від 400 € / проєкт", en: "from 400 € / project", lt: "nuo 400 € / projektas" } },
   { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
-  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnকমার্স darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
+  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnikos darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
   { id: "heat_pumps", uk: "Встановлення теплових насосів", en: "Heat pumps installation", lt: "Šilumos siurblių montavimas", price: { uk: "від 600 € / проєкт", en: "from 600 € / project", lt: "nuo 600 € / projektas" } },
   { id: "underfloor", uk: "Монтаж теплих підлог", en: "Underfloor heating installation", lt: "Grindinio šildymo montavimas", price: { uk: "від 4 € / м²", en: "from 4 € / m²", lt: "nuo 4 € / m²" } },
   { id: "washing_machine", uk: "Підключення пральної машинки", en: "Washing machine connection", lt: "Skalbimo mašinos pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
@@ -332,32 +332,36 @@ document.getElementById('imageViewerModal').onclick = (e) => {
   }
 };
 
-// Загрузка отзывов (неограниченный счетчик + время отправки)
+// Загрузка отзывов (вывод точного количества и даты со временем)
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
   const graphic = document.getElementById('starRatingGraphic');
   const t = uiTexts[currentLang];
 
-  container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
+  if (container) {
+    container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
+  }
 
   try {
     const querySnapshot = await getDocs(collection(db, "client_reviews"));
-    container.innerHTML = '';
+    if (container) container.innerHTML = '';
 
     if (querySnapshot.empty) {
-      container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
-      scoreText.innerText = `0.0 (0 ${t.reviewsWord})`;
-      graphic.className = "text-slate-500";
-      graphic.innerText = "☆☆☆☆☆";
+      if (container) container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
+      if (scoreText) scoreText.innerText = `0.0 (0 ${t.reviewsWord})`;
+      if (graphic) {
+        graphic.className = "text-slate-500";
+        graphic.innerText = "☆☆☆☆☆";
+      }
       return;
     }
 
     let totalRating = 0;
     let count = 0;
 
-    querySnapshot.forEach((doc) => {
-      const rev = doc.data();
+    querySnapshot.forEach((docSnap) => {
+      const rev = docSnap.data();
       totalRating += rev.rating;
       count++;
 
@@ -374,35 +378,45 @@ async function loadReviews() {
           hour: '2-digit',
           minute: '2-digit'
         });
+      } else {
+        // Если дата в базе отсутствовала для старого отзыва
+        formattedDate = new Date().toLocaleDateString();
       }
 
-      const item = document.createElement('div');
-      item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200";
-      item.innerHTML = `
-        <div class="flex justify-between items-center mb-1">
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
-            <span class="text-xs text-slate-400">${formattedDate}</span>
+      if (container) {
+        const item = document.createElement('div');
+        item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200 mb-3";
+        item.innerHTML = `
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
+              <span class="text-xs text-slate-400 font-normal">(${formattedDate})</span>
+            </div>
+            <span class="text-amber-400 text-sm">${stars}</span>
           </div>
-          <span class="text-amber-400 text-sm">${stars}</span>
-        </div>
-        <p class="text-slate-700 text-sm">${rev.comment}</p>
-      `;
-      container.appendChild(item);
+          <p class="text-slate-700 text-sm mt-1">${rev.comment}</p>
+        `;
+        container.appendChild(item);
+      }
     });
 
     const avg = (totalRating / count).toFixed(1);
     const roundedAvg = Math.round(avg);
 
-    scoreText.innerText = `${avg} (${count} ${t.reviewsWord})`;
-    graphic.className = "text-amber-400";
-    graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
+    // Прямой вывод количества без формата /5
+    if (scoreText) {
+      scoreText.innerText = `${avg} (${count} ${t.reviewsWord})`;
+    }
+    if (graphic) {
+      graphic.className = "text-amber-400 text-xl";
+      graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
+    }
   } catch (e) {
-    container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
+    if (container) container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
   }
 }
 
-// Отправка отзыва с записью текущего времени
+// Отправка отзыва
 document.getElementById('submitReviewBtn').onclick = async () => {
   const name = document.getElementById('clientNameInput').value.trim();
   const rating = parseInt(document.getElementById('clientRatingInput').value);
