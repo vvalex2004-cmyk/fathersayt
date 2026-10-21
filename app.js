@@ -1,20 +1,71 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Разрешенные email адреса (ТОЛЬКО ЭТИ ДВА ЧЕЛОВЕКА!)
-const ALLOWED_EMAILS = [
-  "vvalex2004@gmail.com",
-  "vasilyev.ua82@gmail.com"
-];
+let currentLang = 'uk'; // Украинский по умолчанию
+let isMasterLoggedIn = false;
 
-const auth = getAuth();
-const googleProvider = new GoogleAuthProvider();
+// Четкие раздельные переводы для интерфейса
+const uiTexts = {
+  uk: {
+    heroTitle: "Професійні сантехнічні послуги",
+    heroSubtitle: "Проектування, монтаж систем опалення, водопостачання та якісний ремонт сантехніки",
+    callBtn: "📞 Зателефонувати",
+    reviewsCount: "Реальні відгуки клієнтів",
+    servicesTitle: "Наші послуги та ціни",
+    masterBtn: "Майстер",
+    masterActive: "Режим майстра активовано",
+    addPhotoLabel: "Додати фото (10-15 шт):",
+    addPhotoBtn: "+ Додати фото в роботу",
+    reviewsHeaderTitle: "Відгуки клієнтів",
+    reviewsHeaderSub: "Залиште реальний відгук про нашу роботу",
+    openReviewBtn: "+ Залишити відгук",
+    modalReviewTitle: "Ваш відгук",
+    namePlaceholder: "Ваше ім'я",
+    commentPlaceholder: "Текст відгуку...",
+    sendBtn: "Надіслати",
+    cancelBtn: "Скасувати"
+  },
+  en: {
+    heroTitle: "Professional Plumbing Services",
+    heroSubtitle: "Design, heating systems installation, water supply & quality plumbing repair",
+    callBtn: "📞 Call Now",
+    reviewsCount: "Real customer reviews",
+    servicesTitle: "Our Services & Prices",
+    masterBtn: "Master",
+    masterActive: "Master mode active",
+    addPhotoLabel: "Add photo (10-15 pcs):",
+    addPhotoBtn: "+ Add photo",
+    reviewsHeaderTitle: "Customer Reviews",
+    reviewsHeaderSub: "Leave a real review about our work",
+    openReviewBtn: "+ Leave a review",
+    modalReviewTitle: "Your Review",
+    namePlaceholder: "Your Name",
+    commentPlaceholder: "Review text...",
+    sendBtn: "Submit",
+    cancelBtn: "Cancel"
+  },
+  lt: {
+    heroTitle: "Profesionalios Santechnikos Paslaugos",
+    heroSubtitle: "Projektavimas, šildymo sistemų montavimas, vandentiekis ir kokybiškas santechnikos remontas",
+    callBtn: "📞 Skambinti",
+    reviewsCount: "Realūs klientų atsiliepimai",
+    servicesTitle: "Mūsų Paslaugos ir Kainos",
+    masterBtn: "Meistras",
+    masterActive: "Meistro režimas aktyvus",
+    addPhotoLabel: "Pridėti nuotrauką (10-15 vnt.):",
+    addPhotoBtn: "+ Pridėti nuotrauką",
+    reviewsHeaderTitle: "Klientų Atsiliepimai",
+    reviewsHeaderSub: "Palikite realų atsiliepimą apie mūsų darbą",
+    openReviewBtn: "+ Palikti atsiliepimą",
+    modalReviewTitle: "Jūsų Atsiliepimas",
+    namePlaceholder: "Jūsų vardas",
+    commentPlaceholder: "Atsiliepimo tekstas...",
+    sendBtn: "Siųsti",
+    cancelBtn: "Atšaukti"
+  }
+};
 
-let currentUser = null;
-let currentLang = 'en';
-
-// Список всех 23 услуг с ценами
+// Все 23 услуги с точными ценами и переводами
 const servicesData = [
   { id: "repair", uk: "Ремонт сантехнічних систем", en: "Plumbing systems repair", lt: "Santechnikos sistemų remontas", price: "від 25 €" },
   { id: "heating", uk: "Монтаж систем опалення", en: "Heating systems installation", lt: "Šildymo sistemų montavimas", price: "від 50 €" },
@@ -41,12 +92,31 @@ const servicesData = [
   { id: "leak_detection", uk: "Виявлення витоку води в системі опалення", en: "Water leak detection in heating system", lt: "Vandens nuotėkio paieška šildymo sistemoje", price: "від 100 €" }
 ];
 
-// Отрисовка списка услуг
+// Обновление текстов на странице при смене языка
+function updateTexts() {
+  const t = uiTexts[currentLang];
+  document.getElementById('heroTitle').innerText = t.heroTitle;
+  document.getElementById('heroSubtitle').innerText = t.heroSubtitle;
+  document.getElementById('callBtn').innerText = t.callBtn;
+  document.getElementById('reviewsCountText').innerText = t.reviewsCount;
+  document.getElementById('servicesTitle').innerText = t.servicesTitle;
+  document.getElementById('masterLoginBtn').innerText = isMasterLoggedIn ? "Вийти" : t.masterBtn;
+  document.getElementById('adminBadge').innerText = t.masterActive;
+  document.getElementById('reviewsHeaderTitle').innerText = t.reviewsHeaderTitle;
+  document.getElementById('reviewsHeaderSub').innerText = t.reviewsHeaderSub;
+  document.getElementById('openReviewModal').innerText = t.openReviewBtn;
+  document.getElementById('modalReviewTitle').innerText = t.modalReviewTitle;
+  document.getElementById('clientNameInput').placeholder = t.namePlaceholder;
+  document.getElementById('clientCommentInput').placeholder = t.commentPlaceholder;
+  document.getElementById('submitReviewBtn').innerText = t.sendBtn;
+  document.getElementById('closeReviewModal').innerText = t.cancelBtn;
+}
+
+// Рендер услуг
 function renderServices() {
   const container = document.getElementById('servicesContainer');
   container.innerHTML = '';
-
-  const isMaster = currentUser && ALLOWED_EMAILS.includes(currentUser.email.toLowerCase());
+  const t = uiTexts[currentLang];
 
   servicesData.forEach(service => {
     const card = document.createElement('div');
@@ -54,22 +124,17 @@ function renderServices() {
 
     card.innerHTML = `
       <div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">${service[currentLang] || service.en}</h3>
+        <h3 class="font-bold text-lg text-slate-900 mb-2">${service[currentLang] || service.uk}</h3>
         <p class="text-cyan-600 font-bold mb-4">${service.price}</p>
-        
-        <!-- Сетка фото под услугой -->
-        <div id="photos-${service.id}" class="grid grid-cols-3 gap-2 mb-4">
-          <!-- Фото подгружаются из базы -->
-        </div>
+        <div id="photos-${service.id}" class="grid grid-cols-3 gap-2 mb-4"></div>
       </div>
       
-      <!-- Панель только для мастеров -->
-      ${isMaster ? `
+      ${isMasterLoggedIn ? `
         <div class="mt-4 border-t pt-3 bg-slate-50 p-2 rounded">
-          <p class="text-xs text-slate-500 mb-1">Додати фото (10-15 шт):</p>
+          <p class="text-xs text-slate-500 mb-1">${t.addPhotoLabel}</p>
           <input type="text" id="input-${service.id}" placeholder="Вставте посилання на фото" class="w-full text-sm p-1.5 border rounded mb-2">
           <button onclick="window.addPhotoToService('${service.id}')" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 rounded font-medium">
-            + Додати фото в роботу
+            ${t.addPhotoBtn}
           </button>
         </div>
       ` : ''}
@@ -80,7 +145,7 @@ function renderServices() {
   });
 }
 
-// Загрузка фото из базы Firestore
+// Загрузка фото услуг
 async function loadServicePhotos(serviceId) {
   try {
     const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
@@ -92,93 +157,148 @@ async function loadServicePhotos(serviceId) {
       const data = doc.data();
       const img = document.createElement('img');
       img.src = data.url;
-      // Добавляем эффект при наведении и указатель курсора-лупы
       img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
-      
-      // При клике открываем фото на весь экран
       img.onclick = () => window.openImageViewer(data.url);
-
       photoContainer.appendChild(img);
     });
   } catch (e) {
-    console.log("Error loading photos:", e);
+    console.log("Error:", e);
   }
 }
 
-// Открытие картинки во весь экран
-window.openImageViewer = (imageUrl) => {
-  const modal = document.getElementById('imageViewerModal');
-  const fullImg = document.getElementById('fullSizeImage');
-  fullImg.src = imageUrl;
-  modal.classList.remove('hidden');
-};
-
-// Закрытие полноэкранного просмотра
-document.getElementById('imageViewerModal').onclick = () => {
-  document.getElementById('imageViewerModal').classList.add('hidden');
-};
-
-// Функция добавления фото мастером
+// Добавление фото мастером
 window.addPhotoToService = async (serviceId) => {
   const input = document.getElementById(`input-${serviceId}`);
   const url = input.value.trim();
-  if (!url) {
-    alert('Будь ласка, введіть посилання на фото!');
-    return;
-  }
+  if (!url) return alert('Введіть посилання на фото!');
 
   try {
     await addDoc(collection(db, `service_${serviceId}`), {
       url: url,
-      addedBy: currentUser.email,
       createdAt: new Date()
     });
     input.value = '';
     loadServicePhotos(serviceId);
   } catch (e) {
-    alert('Помилка збереження: ' + e.message);
+    alert('Помилка: ' + e.message);
   }
 };
 
-// Логика кнопки авторизации Google
-const googleAuthBtn = document.getElementById('googleAuthBtn');
-const adminBadge = document.getElementById('adminBadge');
+// Загрузка реальных отзывов из базы
+async function loadReviews() {
+  const container = document.getElementById('reviewsContainer');
+  container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
 
-googleAuthBtn.onclick = () => {
-  if (currentUser) {
-    signOut(auth);
-  } else {
-    signInWithPopup(auth, googleProvider).catch((error) => {
-      alert("Помилка входу через Google: " + error.message);
-    });
-  }
-};
+  try {
+    const querySnapshot = await getDocs(collection(db, "client_reviews"));
+    container.innerHTML = '';
 
-// Отслеживание входа
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-  if (user) {
-    const userEmail = user.email.toLowerCase();
-    if (ALLOWED_EMAILS.includes(userEmail)) {
-      googleAuthBtn.innerText = "Вийти";
-      adminBadge.classList.remove('hidden');
-      adminBadge.innerText = `Режим майстра активовано: ${user.email}`;
-    } else {
-      alert(`Акаунт ${user.email} не має прав майстра для додавання фото.`);
-      signOut(auth);
+    if (querySnapshot.empty) {
+      container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
+      return;
     }
-  } else {
-    googleAuthBtn.innerText = "Вхід (Майстер)";
-    adminBadge.classList.add('hidden');
-  }
-  renderServices();
-});
 
-// Переключение языков
+    querySnapshot.forEach((doc) => {
+      const rev = doc.data();
+      const stars = '★'.repeat(rev.rating) + '☆'.repeat(5 - rev.rating);
+      
+      const item = document.createElement('div');
+      item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200";
+      item.innerHTML = `
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
+          <span class="text-amber-400 text-sm">${stars}</span>
+        </div>
+        <p class="text-slate-700 text-sm">${rev.comment}</p>
+      `;
+      container.appendChild(item);
+    });
+  } catch (e) {
+    container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
+  }
+}
+
+// Отправка реального отзыва
+document.getElementById('submitReviewBtn').onclick = async () => {
+  const name = document.getElementById('clientNameInput').value.trim();
+  const rating = parseInt(document.getElementById('clientRatingInput').value);
+  const comment = document.getElementById('clientCommentInput').value.trim();
+
+  if (!name || !comment) {
+    alert('Будь ласка, заповніть ім’я та текст відгуку.');
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "client_reviews"), {
+      name,
+      rating,
+      comment,
+      createdAt: new Date()
+    });
+    document.getElementById('clientNameInput').value = '';
+    document.getElementById('clientCommentInput').value = '';
+    document.getElementById('reviewModal').classList.add('hidden');
+    loadReviews();
+    alert('Дякуємо! Ваш відгук успішно додано.');
+  } catch (e) {
+    alert('Помилка: ' + e.message);
+  }
+};
+
+// Модальные окна
+const loginModal = document.getElementById('loginModal');
+const reviewModal = document.getElementById('reviewModal');
+
+document.getElementById('masterLoginBtn').onclick = () => {
+  if (isMasterLoggedIn) {
+    isMasterLoggedIn = false;
+    document.getElementById('adminBadge').classList.add('hidden');
+    updateTexts();
+    renderServices();
+  } else {
+    loginModal.classList.remove('hidden');
+  }
+};
+
+document.getElementById('closeLoginModal').onclick = () => loginModal.classList.add('hidden');
+
+document.getElementById('submitMasterPass').onclick = () => {
+  const pass = document.getElementById('masterPassInput').value.trim();
+  if (pass === '1234' || pass === '5678') {
+    isMasterLoggedIn = true;
+    loginModal.classList.add('hidden');
+    document.getElementById('adminBadge').classList.remove('hidden');
+    document.getElementById('masterPassInput').value = '';
+    updateTexts();
+    renderServices();
+    alert('Успішний вхід майстра!');
+  } else {
+    alert('Невірний пароль!');
+  }
+};
+
+document.getElementById('openReviewModal').onclick = () => reviewModal.classList.remove('hidden');
+document.getElementById('closeReviewModal').onclick = () => reviewModal.classList.add('hidden');
+
+// Просмотр фото во весь экран
+window.openImageViewer = (url) => {
+  const modal = document.getElementById('imageViewerModal');
+  document.getElementById('fullSizeImage').src = url;
+  modal.classList.remove('hidden');
+};
+document.getElementById('imageViewerModal').onclick = () => {
+  document.getElementById('imageViewerModal').classList.add('hidden');
+};
+
+// Смена языка
 document.getElementById('langSelect').onchange = (e) => {
   currentLang = e.target.value;
+  updateTexts();
   renderServices();
 };
 
-// Инициализация
+// Старт
+updateTexts();
 renderServices();
+loadReviews();
