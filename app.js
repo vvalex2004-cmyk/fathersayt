@@ -1,9 +1,27 @@
+
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentLang = 'uk';
-let isMasterLoggedIn = localStorage.getItem('plumbMasterAuth') === 'true';
 const MASTER_PASSWORDS = ["5399", "225399"];
+
+function setMasterAuth(val) {
+  if (val) {
+    localStorage.setItem('plumbMasterAuth', 'true');
+    document.cookie = "plumbMasterAuth=true; max-age=" + (30 * 24 * 60 * 60) + "; path=/";
+  } else {
+    localStorage.removeItem('plumbMasterAuth');
+    document.cookie = "plumbMasterAuth=; max-age=0; path=/";
+  }
+}
+
+function checkMasterAuth() {
+  const local = localStorage.getItem('plumbMasterAuth') === 'true';
+  const cookie = document.cookie.split('; ').some(row => row.startsWith('plumbMasterAuth=true'));
+  return local || cookie;
+}
+
+let isMasterLoggedIn = checkMasterAuth();
 
 const uiTexts = {
   uk: {
@@ -47,7 +65,7 @@ const uiTexts = {
   lt: {
     heroTitle: "Profesionalios Santechnikos Paslaugos",
     heroSubtitle: "Projektavimas, šildymo sistemų montavimas, vandentiekis ir kokybiškas santechnikos remontas",
-    callBtn: "📞 Skambinti",
+    callBtn: "Skambinti",
     reviewsCount: "Realūs klientų atsiliepimai",
     servicesTitle: "Mūsų Paslaugos ir Kainos",
     masterBtn: "Meistras",
@@ -153,58 +171,117 @@ function renderServices() {
   });
 }
 
+// Загрузка фото с возможностью удаления для мастера
 async function loadServicePhotos(serviceId) {
   try {
-    const q = query(collection(db, `service_${serviceId}`), orderBy("createdAt", "desc"));
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
     const photoContainer = document.getElementById(`photos-${serviceId}`);
     if (!photoContainer) return;
 
     photoContainer.innerHTML = '';
     let servicePhotosList = [];
+    let photoDocs = [];
 
-    querySnapshot.forEach((doc) => {
-      servicePhotosList.push(doc.data().url);
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.url) {
+        servicePhotosList.push(data.url);
+        photoDocs.push({ id: docSnap.id, url: data.url });
+      }
     });
 
-    servicePhotosList.forEach((url, index) => {
+    photoDocs.forEach((item, index) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = "relative group";
+
       const img = document.createElement('img');
-      img.src = url;
+      img.src = item.url;
       img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
       img.onclick = () => window.openGallery(servicePhotosList, index);
-      photoContainer.appendChild(img);
+      wrapper.appendChild(img);
+
+      // Если мастер вошел, показываем крестик удаления прямо на фото
+      if (isMasterLoggedIn) {
+        const deleteBtn = document.createElement('button0'); // создаем кнопку удаления
+        const btn = document.createElement('button');
+        btn.innerHTML = "&times;";
+        btn.className = "absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow font-bold z-10";
+        btn.title = "Видалити фото";
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm("Видалити це фото?")) {
+            try {
+              await deleteDoc(doc(db, `service_${serviceId}`, item.id));
+              location.reload(); // Перезагрузка страницы после удаления
+            } catch (err) {
+              alert("Помилка видалення: " + err.message);
+            }
+          }
+        };
+        wrapper.appendChild(btn);
+      }
+
+      photoContainer.appendChild(wrapper);
     });
   } catch (e) {
     console.log("Error loading photos:", e);
   }
 }
 
-// Конвертация фото прямо в браузере и сохранение в Firestore без Storage
+// Сжатие картинки
+function compressImage(file, callback) {
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      const maxDim = 1000;
+
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      callback(compressedBase64);
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Загрузка фото с автоматической перезагрузкой страницы
 window.uploadPhotoToService = async (serviceId) => {
   const fileInput = document.getElementById(`file-${serviceId}`);
   const file = fileInput.files[0];
   if (!file) return alert('Будь ласка, виберіть файл з галереї!');
 
-  const reader = new FileReader();
-  reader.onload = async function(event) {
-    const base64Image = event.target.result;
-    
+  compressImage(file, async (compressedUrl) => {
     try {
       await addDoc(collection(db, `service_${serviceId}`), {
-        url: base64Image,
+        url: compressedUrl,
         createdAt: new Date()
       });
 
-      fileInput.value = '';
-      await loadServicePhotos(serviceId);
-      alert('Фото успішно завантажено та збережено!');
+      // Перезагружаем страницу, чтобы файл сразу остался на месте
+      location.reload();
     } catch (e) {
-      alert('Помилка збереження: ' + e.message);
+      alert('Помилка збереження в базу: ' + e.message);
     }
-  };
-  reader.readAsDataURL(file);
+  });
 };
 
+// Просмотр галереи
 let activeServicePhotos = [];
 let currentPhotoIndex = 0;
 
@@ -247,6 +324,7 @@ document.getElementById('imageViewerModal').onclick = (e) => {
   }
 };
 
+// Отзывы
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
@@ -323,7 +401,7 @@ const reviewModal = document.getElementById('reviewModal');
 document.getElementById('masterLoginBtn').onclick = () => {
   if (isMasterLoggedIn) {
     isMasterLoggedIn = false;
-    localStorage.removeItem('plumbMasterAuth');
+    setMasterAuth(false);
     updateTexts();
     renderServices();
   } else {
@@ -337,7 +415,7 @@ document.getElementById('submitMasterPass').onclick = () => {
   const pass = document.getElementById('masterPassInput').value.trim();
   if (MASTER_PASSWORDS.includes(pass)) {
     isMasterLoggedIn = true;
-    localStorage.setItem('plumbMasterAuth', 'true');
+    setMasterAuth(true);
     loginModal.classList.add('hidden');
     document.getElementById('masterPassInput').value = '';
     updateTexts();
