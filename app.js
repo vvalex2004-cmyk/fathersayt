@@ -1,15 +1,9 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import { collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const storage = getStorage();
 let currentLang = 'uk';
-let isMasterLoggedIn = false;
+let isMasterLoggedIn = localStorage.getItem('plumbMasterAuth') === 'true';
 const MASTER_PASSWORDS = ["5399", "225399"];
-
-// Глобальные переменные для листания фото в модальном окне
-let activeServicePhotos = [];
-let currentPhotoIndex = 0;
 
 const uiTexts = {
   uk: {
@@ -105,7 +99,15 @@ function updateTexts() {
   document.getElementById('reviewsCountText').innerText = t.reviewsCount;
   document.getElementById('servicesTitle').innerText = t.servicesTitle;
   document.getElementById('masterLoginBtn').innerText = isMasterLoggedIn ? "Вийти" : t.masterBtn;
-  document.getElementById('adminBadge').innerText = t.masterActive;
+  
+  const adminBadge = document.getElementById('adminBadge');
+  if (isMasterLoggedIn) {
+    adminBadge.classList.remove('hidden');
+    adminBadge.innerText = t.masterActive;
+  } else {
+    adminBadge.classList.add('hidden');
+  }
+
   document.getElementById('reviewsHeaderTitle').innerText = t.reviewsHeaderTitle;
   document.getElementById('reviewsHeaderSub').innerText = t.reviewsHeaderSub;
   document.getElementById('openReviewModal').innerText = t.openReviewBtn;
@@ -151,10 +153,10 @@ function renderServices() {
   });
 }
 
-// Загрузка фото и привязка к конкретной услуге
 async function loadServicePhotos(serviceId) {
   try {
-    const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
+    const q = query(collection(db, `service_${serviceId}`), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
     const photoContainer = document.getElementById(`photos-${serviceId}`);
     if (!photoContainer) return;
 
@@ -169,8 +171,6 @@ async function loadServicePhotos(serviceId) {
       const img = document.createElement('img');
       img.src = url;
       img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
-      
-      // При клике открываем галерею именно этой услуги
       img.onclick = () => window.openGallery(servicePhotosList, index);
       photoContainer.appendChild(img);
     });
@@ -179,31 +179,35 @@ async function loadServicePhotos(serviceId) {
   }
 }
 
-// Загрузка файла с галереи телефона/ПК в Firebase Storage
+// Конвертация фото прямо в браузере и сохранение в Firestore без Storage
 window.uploadPhotoToService = async (serviceId) => {
   const fileInput = document.getElementById(`file-${serviceId}`);
   const file = fileInput.files[0];
   if (!file) return alert('Будь ласка, виберіть файл з галереї!');
 
-  try {
-    const storageRef = ref(storage, `services/${serviceId}/${Date.now()}_${file.name}`);
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
+  const reader = new FileReader();
+  reader.onload = async function(event) {
+    const base64Image = event.target.result;
+    
+    try {
+      await addDoc(collection(db, `service_${serviceId}`), {
+        url: base64Image,
+        createdAt: new Date()
+      });
 
-    await addDoc(collection(db, `service_${serviceId}`), {
-      url: downloadURL,
-      createdAt: new Date()
-    });
-
-    fileInput.value = '';
-    loadServicePhotos(serviceId);
-    alert('Фото успішно додано з галереї!');
-  } catch (e) {
-    alert('Помилка завантаження: ' + e.message);
-  }
+      fileInput.value = '';
+      await loadServicePhotos(serviceId);
+      alert('Фото успішно завантажено та збережено!');
+    } catch (e) {
+      alert('Помилка збереження: ' + e.message);
+    }
+  };
+  reader.readAsDataURL(file);
 };
 
-// Открытие галереи и листание стрелками
+let activeServicePhotos = [];
+let currentPhotoIndex = 0;
+
 window.openGallery = (photosArray, startIndex) => {
   activeServicePhotos = photosArray;
   currentPhotoIndex = startIndex;
@@ -243,7 +247,6 @@ document.getElementById('imageViewerModal').onclick = (e) => {
   }
 };
 
-// Отзывы и рейтинг
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
@@ -320,7 +323,7 @@ const reviewModal = document.getElementById('reviewModal');
 document.getElementById('masterLoginBtn').onclick = () => {
   if (isMasterLoggedIn) {
     isMasterLoggedIn = false;
-    document.getElementById('adminBadge').classList.add('hidden');
+    localStorage.removeItem('plumbMasterAuth');
     updateTexts();
     renderServices();
   } else {
@@ -334,8 +337,8 @@ document.getElementById('submitMasterPass').onclick = () => {
   const pass = document.getElementById('masterPassInput').value.trim();
   if (MASTER_PASSWORDS.includes(pass)) {
     isMasterLoggedIn = true;
+    localStorage.setItem('plumbMasterAuth', 'true');
     loginModal.classList.add('hidden');
-    document.getElementById('adminBadge').classList.remove('hidden');
     document.getElementById('masterPassInput').value = '';
     updateTexts();
     renderServices();
