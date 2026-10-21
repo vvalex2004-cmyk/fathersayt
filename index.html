@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Сантехнічні послуги</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
@@ -13,7 +12,6 @@
   <header class="bg-slate-800 border-b border-slate-700 shadow-md">
     <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
       
-      <!-- Логотип / Название компании -->
       <div class="flex items-center gap-3">
         <img id="masterAvatar" src="avatar.jpg" alt="Майстер" class="w-12 h-12 rounded-full object-cover border-2 border-cyan-500 shadow" onerror="this.style.display='none'">
         <div>
@@ -22,7 +20,7 @@
         </div>
       </div>
 
-      <!-- Центральный блок: Звезды и рейтинг -->
+      <!-- Блок рейтинга (без /5, с правильными ID) -->
       <div class="flex flex-col items-center justify-center">
         <div class="flex items-center gap-2">
           <span id="starRatingGraphic" class="text-amber-400 text-xl">★★★★★</span>
@@ -31,26 +29,21 @@
         <p id="reviewsCountText" class="text-slate-400 text-xs mt-0.5">Реальні відгуки клієнтів</p>
       </div>
 
-      <!-- Кнопки справа: Язык, Телефон/WhatsApp, Вход майстра -->
       <div class="flex items-center gap-3 flex-wrap justify-center">
-        <!-- Выбор языка -->
         <select id="langSelect" class="bg-slate-700 text-white text-sm rounded px-2 py-1 border border-slate-600 focus:outline-none">
           <option value="uk">UA</option>
           <option value="en">EN</option>
           <option value="lt">LT</option>
         </select>
 
-        <!-- Кнопка позвонить -->
         <a id="callBtn" href="tel:+37066159955" class="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow">
           📞 Зателефонувати
         </a>
 
-        <!-- Кнопка WhatsApp -->
         <a href="https://wa.me/37066159955" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1">
           💬 WhatsApp
         </a>
 
-        <!-- Кнопка входа мастера -->
         <button id="masterLoginBtn" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs px-3 py-2 rounded-lg transition border border-slate-600">
           Майстер
         </button>
@@ -59,7 +52,7 @@
     </div>
   </header>
 
-  <!-- Главный блок с услугами -->
+  <!-- Основной контент -->
   <main class="max-w-5xl mx-auto px-4 py-8 flex-grow w-full">
     <div class="text-center mb-8">
       <p id="heroSubtitle" class="text-slate-400 text-sm max-w-xl mx-auto">Проектування, монтаж систем опалення, водопостачання та якісний ремонт сантехніки</p>
@@ -67,10 +60,7 @@
 
     <h2 id="servicesTitle" class="text-xl font-bold mb-6 text-white border-b border-slate-800 pb-2">Наші послуги та ціни</h2>
     
-    <!-- Сетка услуг -->
-    <div id="servicesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Услуги динамически подгружаются из app.js -->
-    </div>
+    <div id="servicesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 
     <!-- Секция отзывов -->
     <section class="mt-16 border-t border-slate-800 pt-8">
@@ -84,19 +74,15 @@
         </button>
       </div>
 
-      <!-- Список отзывов -->
-      <div id="reviewsContainer" class="space-y-3">
-        <!-- Отзывы подгружаются из Firestore -->
-      </div>
+      <div id="reviewsContainer" class="space-y-3"></div>
     </section>
   </main>
 
-  <!-- Подвал сайта -->
   <footer class="bg-slate-800 border-t border-slate-700 text-center py-4 text-xs text-slate-400">
     <p>© 2026 Сантехнічні послуги. Всі права захищені. Телефон: +37066159955</p>
   </footer>
 
-  <!-- Модальное окно: Вход для мастера -->
+  <!-- Модальное окно входа мастера -->
   <div id="loginModal" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4">
     <div class="bg-slate-800 border border-slate-700 p-6 rounded-xl w-full max-w-sm shadow-xl">
       <h3 class="text-lg font-bold text-white mb-3">Вхід для майстра</h3>
@@ -108,7 +94,7 @@
     </div>
   </div>
 
-  <!-- Модальное окно: Оставить отзыв -->
+  <!-- Модальное окно отзыва -->
   <div id="reviewModal" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4">
     <div class="bg-slate-800 border border-slate-700 p-6 rounded-xl w-full max-w-md shadow-xl">
       <h3 id="modalReviewTitle" class="text-lg font-bold text-white mb-3">Ваш відгук</h3>
@@ -118,11 +104,11 @@
       <div class="mb-3">
         <label class="block text-xs text-slate-400 mb-1">Оцінка:</label>
         <select id="clientRatingInput" class="w-full bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-cyan-500">
-          <option value="5">★★★★★ (5/5)</option>
-          <option value="4">★★★★☆ (4/5)</option>
-          <option value="3">★★★☆☆ (3/5)</option>
-          <option value="2">★★☆☆☆ (2/5)</option>
-          <option value="1">★☆☆☆☆ (1/5)</option>
+          <option value="5">★★★★★ (5)</option>
+          <option value="4">★★★★☆ (4)</option>
+          <option value="3">★★★☆☆ (3)</option>
+          <option value="2">★★☆☆☆ (2)</option>
+          <option value="1">★☆☆☆☆ (1)</option>
         </select>
       </div>
 
@@ -135,21 +121,11 @@
     </div>
   </div>
 
-  <!-- Полноэкранный просмотрщик галереи фотографий -->
+  <!-- Просмотр фото -->
   <div id="imageViewerModal" class="fixed inset-0 bg-black/90 flex items-center justify-center hidden z-50 p-4">
-    <button id="closeViewerBtn" class="absolute top-4 right-4 text-white text-3xl font-bold bg-slate-800/80 hover:bg-slate-700 w-10 h-10 rounded-full flex items-center justify-center shadow z-50">&times;</button>
-    
-    <button id="prevPhotoBtn" class="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-800/80 hover:bg-slate-700 text-white text-2xl w-12 h-12 rounded-full flex items-center justify-center shadow z-50">‹</button>
-    
-    <div class="max-w-4xl max-h-[85vh] flex flex-col items-center justify-center">
-      <img id="fullSizeImage" src="" alt="Full size photo" class="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl">
-      <span id="photoCounter" class="text-white text-sm mt-3 bg-slate-800/80 px-3 py-1 rounded-full shadow"></span>
-    </div>
-    
-    <button id="nextPhotoBtn" class="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-800/80 hover:bg-slate-700 text-white text-2xl w-12 h-12 rounded-full flex items-center justify-center shadow z-50">›</button>
+    <img id="fullSizeImage" src="" alt="Full size" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl">
   </div>
 
-  <!-- Подключение скрипта приложения -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
