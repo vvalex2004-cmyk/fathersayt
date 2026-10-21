@@ -1,10 +1,12 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-let currentLang = 'uk'; // Украинский по умолчанию
+let currentLang = 'uk';
 let isMasterLoggedIn = false;
 
-// Четкие раздельные переводы для интерфейса
+// Новые пароли для двух мастеров
+const MASTER_PASSWORDS = ["5399", "225399"];
+
 const uiTexts = {
   uk: {
     heroTitle: "Професійні сантехнічні послуги",
@@ -65,34 +67,32 @@ const uiTexts = {
   }
 };
 
-// Все 23 услуги с точными ценами и переводами
 const servicesData = [
-  { id: "repair", uk: "Ремонт сантехнічних систем", en: "Plumbing systems repair", lt: "Santechnikos sistemų remontas", price: "від 25 €" },
-  { id: "heating", uk: "Монтаж систем опалення", en: "Heating systems installation", lt: "Šildymo sistemų montavimas", price: "від 50 €" },
-  { id: "handyman", uk: "Сантехнік по дому", en: "Handyman plumber", lt: "Santechnikas į namus", price: "від 20 € / год" },
-  { id: "welding", uk: "Зварювання трубопроводів та вузлів", en: "Pipeline & node welding", lt: "Vamzdynų ir mazgų suvirinimas", price: "від 25 €" },
-  { id: "water_sewer", uk: "Монтаж водопостачання та каналізації", en: "Water supply & sewage installation", lt: "Vandentiekio ir kanalizacijos montavimas", price: "від 50 € / проєкт" },
-  { id: "ventilation", uk: "Монтаж вентиляційних систем", en: "Ventilation systems installation", lt: "Ventiliacijos sistemų montavimas", price: "запитати ціну" },
-  { id: "drain_sewer", uk: "Монтаж мереж зливної каналізації", en: "Storm drainage networks installation", lt: "Lietaus kanalizacijos tinklų montavimas", price: "від 300 €" },
-  { id: "heating_design", uk: "Проектування систем опалення", en: "Heating systems design", lt: "Šildymo sistemų projektavimas", price: "від 400 € / проєкт" },
-  { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: "від 15 € / місяць" },
-  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnikos darbai", price: "від 50 €" },
-  { id: "heat_pumps", uk: "Встановлення теплових насосів", en: "Heat pumps installation", lt: "Šilumos siurblių montavimas", price: "від 600 € / проєкт" },
-  { id: "underfloor", uk: "Монтаж теплих підлог", en: "Underfloor heating installation", lt: "Grindinio šildymo montavimas", price: "від 4 € / м²" },
-  { id: "washing_machine", uk: "Підключення пральної машинки", en: "Washing machine connection", lt: "Skalbimo mašinos pajungimas", price: "від 50 € / шт" },
-  { id: "boiler", uk: "Підключення котла", en: "Boiler connection", lt: "Katilo pajungimas", price: "від 300 € / шт" },
-  { id: "gas_boiler", uk: "Підключення газового котла", en: "Gas boiler connection", lt: "Dujinio katilo pajungimas", price: "від 250 € / шт" },
-  { id: "dryer", uk: "Підключення сушарки", en: "Dryer connection", lt: "Džiovyklės pajungimas", price: "від 50 € / шт" },
-  { id: "dishwasher", uk: "Підключення посудомийної машини", en: "Dishwasher connection", lt: "Indaplovės pajungimas", price: "від 50 € / шт" },
-  { id: "engineering_networks", uk: "Монтаж інженерних мереж", en: "Engineering networks installation", lt: "Inžinerinių tinklų montavimas", price: "від 300 €" },
-  { id: "snake_connection", uk: "З'єднання змійовика (рушникосушки)", en: "Towel warmer connection", lt: "Gyvatuko pajungimas", price: "від 50 € / проєкт" },
-  { id: "radiator", uk: "Підключення радіатору", en: "Radiator connection", lt: "Radiatoriaus pajungimas", price: "від 50 € / шт" },
-  { id: "toilet", uk: "Підключення туалету", en: "Toilet installation", lt: "Unitazo montavimas", price: "від 50 € / шт" },
-  { id: "water_filters", uk: "Професійне встановлення фільтрів для води", en: "Professional water filters installation", lt: "Profesionalus vandens filtrų montavimas", price: "від 100 €" },
-  { id: "leak_detection", uk: "Виявлення витоку води в системі опалення", en: "Water leak detection in heating system", lt: "Vandens nuotėkio paieška šildymo sistemoje", price: "від 100 €" }
+  { id: "repair", uk: "Ремонт сантехнічних систем", en: "Plumbing systems repair", lt: "Santechnikos sistemų remontas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
+  { id: "heating", uk: "Монтаж систем опалення", en: "Heating systems installation", lt: "Šildymo sistemų montavimas", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
+  { id: "handyman", uk: "Сантехнік по дому", en: "Handyman plumber", lt: "Santechnikas į namus", price: { uk: "від 20 € / год", en: "from 20 € / hr", lt: "nuo 20 € / val." } },
+  { id: "welding", uk: "Зварювання трубопроводів та вузлів", en: "Pipeline & node welding", lt: "Vamzdynų ir mazgų suvirinimas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
+  { id: "water_sewer", uk: "Монтаж водопостачання та каналізації", en: "Water supply & sewage installation", lt: "Vandentiekio ir kanalizacijos montavimas", price: { uk: "від 50 € / проєкт", en: "from 50 € / project", lt: "nuo 50 € / projektas" } },
+  { id: "ventilation", uk: "Монтаж вентиляційних систем", en: "Ventilation systems installation", lt: "Ventiliacijos sistemų montavimas", price: { uk: "запитати ціну", en: "ask for price", lt: "klausti kainos" } },
+  { id: "drain_sewer", uk: "Монтаж мереж зливної каналізації", en: "Storm drainage networks installation", lt: "Lietaus kanalizacijos tinklų montavimas", price: { uk: "від 300 €", en: "from 300 €", lt: "nuo 300 €" } },
+  { id: "heating_design", uk: "Проектування систем опалення", en: "Heating systems design", lt: "Šildymo sistemų projektavimas", price: { uk: "від 400 € / проєкт", en: "from 400 € / project", lt: "nuo 400 € / projektas" } },
+  { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
+  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnikos darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
+  { id: "heat_pumps", uk: "Встановлення теплових насосів", en: "Heat pumps installation", lt: "Šilumos siurblių montavimas", price: { uk: "від 600 € / проєкт", en: "from 600 € / project", lt: "nuo 600 € / projektas" } },
+  { id: "underfloor", uk: "Монтаж теплих підлог", en: "Underfloor heating installation", lt: "Grindinio šildymo montavimas", price: { uk: "від 4 € / м²", en: "from 4 € / m²", lt: "nuo 4 € / m²" } },
+  { id: "washing_machine", uk: "Підключення пральної машинки", en: "Washing machine connection", lt: "Skalbimo mašinos pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
+  { id: "boiler", uk: "Підключення котла", en: "Boiler connection", lt: "Katilo pajungimas", price: { uk: "від 300 € / шт", en: "from 300 € / pcs", lt: "nuo 300 € / vnt." } },
+  { id: "gas_boiler", uk: "Підключення газового котла", en: "Gas boiler connection", lt: "Dujinio katilo pajungimas", price: { uk: "від 250 € / шт", en: "from 250 € / pcs", lt: "nuo 250 € / vnt." } },
+  { id: "dryer", uk: "Підключення сушарки", en: "Dryer connection", lt: "Džiovyklės pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
+  { id: "dishwasher", uk: "Підключення посудомийної машини", en: "Dishwasher connection", lt: "Indaplovės pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
+  { id: "engineering_networks", uk: "Монтаж інженерних мереж", en: "Engineering networks installation", lt: "Inžinerinių tinklų montavimas", price: { uk: "від 300 €", en: "from 300 €", lt: "nuo 300 €" } },
+  { id: "snake_connection", uk: "З'єднання змійовика (рушникосушки)", en: "Towel warmer connection", lt: "Gyvatuko pajungimas", price: { uk: "від 50 € / проєкт", en: "from 50 € / project", lt: "nuo 50 € / projektas" } },
+  { id: "radiator", uk: "Підключення радіатору", en: "Radiator connection", lt: "Radiatoriaus pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
+  { id: "toilet", uk: "Підключення туалету", en: "Toilet installation", lt: "Unitazo montavimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
+  { id: "water_filters", uk: "Професійне встановлення фільтрів для води", en: "Professional water filters installation", lt: "Profesionalus vandens filtrų montavimas", price: { uk: "від 100 €", en: "from 100 €", lt: "nuo 100 €" } },
+  { id: "leak_detection", uk: "Виявлення витоку води в системі опалення", en: "Water leak detection in heating system", lt: "Vandens nuotėkio paieška šildymo sistemoje", price: { uk: "від 100 €", en: "from 100 €", lt: "nuo 100 €" } }
 ];
 
-// Обновление текстов на странице при смене языка
 function updateTexts() {
   const t = uiTexts[currentLang];
   document.getElementById('heroTitle').innerText = t.heroTitle;
@@ -112,7 +112,6 @@ function updateTexts() {
   document.getElementById('closeReviewModal').innerText = t.cancelBtn;
 }
 
-// Рендер услуг
 function renderServices() {
   const container = document.getElementById('servicesContainer');
   container.innerHTML = '';
@@ -122,10 +121,13 @@ function renderServices() {
     const card = document.createElement('div');
     card.className = "bg-white p-5 rounded-xl shadow-md border border-slate-100 flex flex-col justify-between";
 
+    const title = service[currentLang] || service.uk;
+    const priceText = service.price[currentLang] || service.price.uk;
+
     card.innerHTML = `
       <div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">${service[currentLang] || service.uk}</h3>
-        <p class="text-cyan-600 font-bold mb-4">${service.price}</p>
+        <h3 class="font-bold text-lg text-slate-900 mb-2">${title}</h3>
+        <p class="text-cyan-600 font-bold mb-4">${priceText}</p>
         <div id="photos-${service.id}" class="grid grid-cols-3 gap-2 mb-4"></div>
       </div>
       
@@ -145,7 +147,6 @@ function renderServices() {
   });
 }
 
-// Загрузка фото услуг
 async function loadServicePhotos(serviceId) {
   try {
     const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
@@ -166,7 +167,6 @@ async function loadServicePhotos(serviceId) {
   }
 }
 
-// Добавление фото мастером
 window.addPhotoToService = async (serviceId) => {
   const input = document.getElementById(`input-${serviceId}`);
   const url = input.value.trim();
@@ -184,9 +184,11 @@ window.addPhotoToService = async (serviceId) => {
   }
 };
 
-// Загрузка реальных отзывов из базы
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
+  const scoreText = document.getElementById('averageScoreText');
+  const graphic = document.getElementById('starRatingGraphic');
+
   container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
 
   try {
@@ -195,11 +197,20 @@ async function loadReviews() {
 
     if (querySnapshot.empty) {
       container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
+      scoreText.innerText = "0.0 (0/5)";
+      graphic.className = "text-slate-500";
+      graphic.innerText = "☆☆☆☆☆";
       return;
     }
 
+    let totalRating = 0;
+    let count = 0;
+
     querySnapshot.forEach((doc) => {
       const rev = doc.data();
+      totalRating += rev.rating;
+      count++;
+
       const stars = '★'.repeat(rev.rating) + '☆'.repeat(5 - rev.rating);
       
       const item = document.createElement('div');
@@ -213,12 +224,19 @@ async function loadReviews() {
       `;
       container.appendChild(item);
     });
+
+    const avg = (totalRating / count).toFixed(1);
+    const roundedAvg = Math.round(avg);
+
+    scoreText.innerText = `${avg} (${count}/5)`;
+    graphic.className = "text-amber-400";
+    graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
+
   } catch (e) {
     container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
   }
 }
 
-// Отправка реального отзыва
 document.getElementById('submitReviewBtn').onclick = async () => {
   const name = document.getElementById('clientNameInput').value.trim();
   const rating = parseInt(document.getElementById('clientRatingInput').value);
@@ -246,7 +264,6 @@ document.getElementById('submitReviewBtn').onclick = async () => {
   }
 };
 
-// Модальные окна
 const loginModal = document.getElementById('loginModal');
 const reviewModal = document.getElementById('reviewModal');
 
@@ -265,7 +282,8 @@ document.getElementById('closeLoginModal').onclick = () => loginModal.classList.
 
 document.getElementById('submitMasterPass').onclick = () => {
   const pass = document.getElementById('masterPassInput').value.trim();
-  if (pass === '1234' || pass === '5678') {
+  // Проверка по новым паролям 5399 и 225399
+  if (MASTER_PASSWORDS.includes(pass)) {
     isMasterLoggedIn = true;
     loginModal.classList.add('hidden');
     document.getElementById('adminBadge').classList.remove('hidden');
@@ -281,7 +299,6 @@ document.getElementById('submitMasterPass').onclick = () => {
 document.getElementById('openReviewModal').onclick = () => reviewModal.classList.remove('hidden');
 document.getElementById('closeReviewModal').onclick = () => reviewModal.classList.add('hidden');
 
-// Просмотр фото во весь экран
 window.openImageViewer = (url) => {
   const modal = document.getElementById('imageViewerModal');
   document.getElementById('fullSizeImage').src = url;
@@ -291,14 +308,12 @@ document.getElementById('imageViewerModal').onclick = () => {
   document.getElementById('imageViewerModal').classList.add('hidden');
 };
 
-// Смена языка
 document.getElementById('langSelect').onchange = (e) => {
   currentLang = e.target.value;
   updateTexts();
   renderServices();
 };
 
-// Старт
 updateTexts();
 renderServices();
 loadReviews();

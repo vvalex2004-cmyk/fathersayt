@@ -27,7 +27,7 @@
         <option value="lt">LT</option>
       </select>
 
-      <!-- Кнопка входа мастера по паролю -->
+      <!-- Кнопка входа мастера -->
       <button id="masterLoginBtn" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded text-sm transition font-medium">
         Майстер
       </button>
@@ -40,11 +40,11 @@
       <h2 id="heroTitle" class="text-3xl md:text-4xl font-extrabold mb-3 text-cyan-400">Професійні сантехнічні послуги</h2>
       <p id="heroSubtitle" class="text-slate-200 text-base md:text-lg mb-6">Проектування, монтаж систем опалення, водопостачання та якісний ремонт сантехніки</p>
       
-      <!-- Рейтинг Google Карты под номером телефона -->
+      <!-- Средний рейтинг и динамические звёзды -->
       <div class="flex flex-col items-center justify-center mb-6">
-        <div class="flex items-center gap-1 text-amber-400 text-xl mb-1">
-          <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
-          <span class="text-white text-sm font-bold ml-2">5.0 / Google Maps</span>
+        <div class="flex items-center gap-1 text-xl mb-1">
+          <span id="starRatingGraphic" class="text-slate-500">☆☆☆☆☆</span>
+          <span id="averageScoreText" class="text-white text-sm font-bold ml-2">0.0 (0/5)</span>
         </div>
         <p id="reviewsCountText" class="text-xs text-slate-300">Реальні відгуки клієнтів</p>
       </div>
@@ -68,7 +68,7 @@
 
     <h2 id="servicesTitle" class="text-2xl font-bold mb-6 text-slate-900 border-l-4 border-cyan-600 pl-3">Наші послуги та ціни</h2>
     <div id="servicesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-      <!-- Услуги генерируются через JS -->
+      <!-- Услуги подгружаются из JS -->
     </div>
 
     <!-- СЕКЦИЯ ОТЗЫВОВ -->
@@ -83,18 +83,18 @@
         </button>
       </div>
 
-      <!-- Список отзывов из базы -->
+      <!-- Список отзывов -->
       <div id="reviewsContainer" class="space-y-4">
-        <!-- Отзывы подгружаются автоматически -->
+        <!-- Подгружается из базы -->
       </div>
     </section>
   </main>
 
-  <!-- Модальное окно входа мастера -->
+  <!-- Модальное окно входа мастера (без подсказок паролей) -->
   <div id="loginModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
       <h3 class="text-xl font-bold mb-3">Вхід для майстрів</h3>
-      <p class="text-sm text-slate-600 mb-4">Введіть ваш пароль (1234 або 5678):</p>
+      <p class="text-sm text-slate-600 mb-4">Введіть секретний пароль:</p>
       <input type="password" id="masterPassInput" placeholder="Пароль" class="w-full p-2.5 border rounded-lg mb-4 text-sm">
       <div class="flex justify-end gap-2">
         <button id="closeLoginModal" class="px-4 py-2 bg-slate-200 rounded-lg text-sm">Скасувати</button>
@@ -103,15 +103,17 @@
     </div>
   </div>
 
-  <!-- Модальное окно добавления отзыва -->
+  <!-- Модальное окно отзыва -->
   <div id="reviewModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
       <h3 id="modalReviewTitle" class="text-xl font-bold mb-3">Ваш відгук</h3>
       <input type="text" id="clientNameInput" placeholder="Ваше ім'я" class="w-full p-2.5 border rounded-lg mb-3 text-sm">
       <select id="clientRatingInput" class="w-full p-2.5 border rounded-lg mb-3 text-sm bg-white">
-        <option value="5">★★★★★ (5/5) - Чудово</option>
-        <option value="4">★★★★☆ (4/5) - Добре</option>
-        <option value="3">★★★☆☆ (3/5) - Нормально</option>
+        <option value="5">★★★★★ (5/5)</option>
+        <option value="4">★★★★☆ (4/5)</option>
+        <option value="3">★★★☆☆ (3/5)</option>
+        <option value="2">★★☆☆☆ (2/5)</option>
+        <option value="1">★☆☆☆☆ (1/5)</option>
       </select>
       <textarea id="clientCommentInput" placeholder="Текст відгуку..." rows="3" class="w-full p-2.5 border rounded-lg mb-4 text-sm"></textarea>
       <div class="flex justify-end gap-2">
