@@ -40,7 +40,8 @@ const uiTexts = {
     namePlaceholder: "Ваше ім'я",
     commentPlaceholder: "Текст відгуку...",
     sendBtn: "Надіслати",
-    cancelBtn: "Скасувати"
+    cancelBtn: "Скасувати",
+    reviewsWord: "відгуків"
   },
   en: {
     heroTitle: "Professional Plumbing Services",
@@ -59,7 +60,8 @@ const uiTexts = {
     namePlaceholder: "Your Name",
     commentPlaceholder: "Review text...",
     sendBtn: "Submit",
-    cancelBtn: "Cancel"
+    cancelBtn: "Cancel",
+    reviewsWord: "reviews"
   },
   lt: {
     heroTitle: "Profesionalios Santechnikos Paslaugos",
@@ -78,7 +80,8 @@ const uiTexts = {
     namePlaceholder: "Jūsų vardas",
     commentPlaceholder: "Atsiliepimo tekstas...",
     sendBtn: "Siųsti",
-    cancelBtn: "Atšaukti"
+    cancelBtn: "Atšaukti",
+    reviewsWord: "atsiliepimų"
   }
 };
 
@@ -92,7 +95,7 @@ const servicesData = [
   { id: "drain_sewer", uk: "Монтаж мереж зливної каналізації", en: "Storm drainage networks installation", lt: "Lietaus kanalizacijos tinklų montavimas", price: { uk: "від 300 €", en: "from 300 €", lt: "nuo 300 €" } },
   { id: "heating_design", uk: "Проектування систем опалення", en: "Heating systems design", lt: "Šildymo sistemų projektavimas", price: { uk: "від 400 € / проєкт", en: "from 400 € / project", lt: "nuo 400 € / projektas" } },
   { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
-  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnikos darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
+  { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnকমার্স darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
   { id: "heat_pumps", uk: "Встановлення теплових насосів", en: "Heat pumps installation", lt: "Šilumos siurblių montavimas", price: { uk: "від 600 € / проєкт", en: "from 600 € / project", lt: "nuo 600 € / projektas" } },
   { id: "underfloor", uk: "Монтаж теплих підлог", en: "Underfloor heating installation", lt: "Grindinio šildymo montavimas", price: { uk: "від 4 € / м²", en: "from 4 € / m²", lt: "nuo 4 € / m²" } },
   { id: "washing_machine", uk: "Підключення пральної машинки", en: "Washing machine connection", lt: "Skalbimo mašinos pajungimas", price: { uk: "від 50 € / шт", en: "from 50 € / pcs", lt: "nuo 50 € / vnt." } },
@@ -151,7 +154,6 @@ function renderServices() {
       <div>
         <h3 class="font-bold text-lg text-slate-900 mb-2">${title}</h3>
         <p class="text-cyan-600 font-bold mb-4">${priceText}</p>
-        <!-- Лента с эффектом карусели: 1 среднее фото + виднеющийся край следующего -->
         <div id="photos-${service.id}" class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none" style="scroll-snap-type: x mandatory;"></div>
       </div>
       
@@ -171,7 +173,6 @@ function renderServices() {
   });
 }
 
-// Загрузка фото в виде карусели с надписью +N на первом фото и кнопкой удаления
 async function loadServicePhotos(serviceId) {
   try {
     const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
@@ -199,7 +200,6 @@ async function loadServicePhotos(serviceId) {
 
     photoDocs.forEach((item, index) => {
       const wrapper = document.createElement('div');
-      // Размер: первая фото средняя (w-48), остальные видны краем (flex-shrink-0)
       wrapper.className = "relative flex-shrink-0 w-48 h-32 scroll-snap-align-start";
 
       const img = document.createElement('img');
@@ -208,7 +208,6 @@ async function loadServicePhotos(serviceId) {
       img.onclick = () => window.openGallery(servicePhotosList, index);
       wrapper.appendChild(img);
 
-      // Если это первая фотография и есть другие фото, показываем плашку "+N"
       if (index === 0 && servicePhotosList.length > 1) {
         const badge = document.createElement('div');
         badge.className = "absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center pointer-events-none";
@@ -216,7 +215,6 @@ async function loadServicePhotos(serviceId) {
         wrapper.appendChild(badge);
       }
 
-      // Кнопка удаления для мастера
       if (isMasterLoggedIn) {
         const btn = document.createElement('button');
         btn.innerHTML = "&times;";
@@ -243,7 +241,6 @@ async function loadServicePhotos(serviceId) {
   }
 }
 
-// Сжатие изображения
 function compressImage(file, callback) {
   const reader = new FileReader();
   reader.onload = function(event) {
@@ -275,7 +272,6 @@ function compressImage(file, callback) {
   reader.readAsDataURL(file);
 }
 
-// Загрузка фото с авто-перезагрузкой
 window.uploadPhotoToService = async (serviceId) => {
   const fileInput = document.getElementById(`file-${serviceId}`);
   const file = fileInput.files[0];
@@ -294,7 +290,6 @@ window.uploadPhotoToService = async (serviceId) => {
   });
 };
 
-// Просмотр галереи
 let activeServicePhotos = [];
 let currentPhotoIndex = 0;
 
@@ -337,11 +332,12 @@ document.getElementById('imageViewerModal').onclick = (e) => {
   }
 };
 
-// Отзывы
+// Загрузка отзывов (неограниченный счетчик + время отправки)
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
   const graphic = document.getElementById('starRatingGraphic');
+  const t = uiTexts[currentLang];
 
   container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
 
@@ -351,7 +347,7 @@ async function loadReviews() {
 
     if (querySnapshot.empty) {
       container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
-      scoreText.innerText = "0.0 (0/5)";
+      scoreText.innerText = `0.0 (0 ${t.reviewsWord})`;
       graphic.className = "text-slate-500";
       graphic.innerText = "☆☆☆☆☆";
       return;
@@ -366,11 +362,28 @@ async function loadReviews() {
       count++;
 
       const stars = '★'.repeat(rev.rating) + '☆'.repeat(5 - rev.rating);
+      
+      // Форматирование даты и времени
+      let formattedDate = "";
+      if (rev.createdAt) {
+        const dateObj = rev.createdAt.toDate ? rev.createdAt.toDate() : new Date(rev.createdAt);
+        formattedDate = dateObj.toLocaleString(currentLang === 'uk' ? 'uk-UA' : (currentLang === 'lt' ? 'lt-LT' : 'en-US'), {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+
       const item = document.createElement('div');
       item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200";
       item.innerHTML = `
         <div class="flex justify-between items-center mb-1">
-          <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
+            <span class="text-xs text-slate-400">${formattedDate}</span>
+          </div>
           <span class="text-amber-400 text-sm">${stars}</span>
         </div>
         <p class="text-slate-700 text-sm">${rev.comment}</p>
@@ -381,7 +394,7 @@ async function loadReviews() {
     const avg = (totalRating / count).toFixed(1);
     const roundedAvg = Math.round(avg);
 
-    scoreText.innerText = `${avg} (${count}/5)`;
+    scoreText.innerText = `${avg} (${count} ${t.reviewsWord})`;
     graphic.className = "text-amber-400";
     graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
   } catch (e) {
@@ -389,6 +402,7 @@ async function loadReviews() {
   }
 }
 
+// Отправка отзыва с записью текущего времени
 document.getElementById('submitReviewBtn').onclick = async () => {
   const name = document.getElementById('clientNameInput').value.trim();
   const rating = parseInt(document.getElementById('clientRatingInput').value);
@@ -397,7 +411,12 @@ document.getElementById('submitReviewBtn').onclick = async () => {
   if (!name || !comment) return alert('Будь ласка, заповніть ім’я та текст відгуку.');
 
   try {
-    await addDoc(collection(db, "client_reviews"), { name, rating, comment, createdAt: new Date() });
+    await addDoc(collection(db, "client_reviews"), {
+      name,
+      rating,
+      comment,
+      createdAt: new Date()
+    });
     document.getElementById('clientNameInput').value = '';
     document.getElementById('clientCommentInput').value = '';
     document.getElementById('reviewModal').classList.add('hidden');
@@ -446,6 +465,7 @@ document.getElementById('langSelect').onchange = (e) => {
   currentLang = e.target.value;
   updateTexts();
   renderServices();
+  loadReviews();
 };
 
 updateTexts();
