@@ -1,11 +1,15 @@
 import { db } from './firebase-config.js';
 import { collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
+const storage = getStorage();
 let currentLang = 'uk';
 let isMasterLoggedIn = false;
-
-// Новые пароли для двух мастеров
 const MASTER_PASSWORDS = ["5399", "225399"];
+
+// Глобальные переменные для листания фото в модальном окне
+let activeServicePhotos = [];
+let currentPhotoIndex = 0;
 
 const uiTexts = {
   uk: {
@@ -16,8 +20,8 @@ const uiTexts = {
     servicesTitle: "Наші послуги та ціни",
     masterBtn: "Майстер",
     masterActive: "Режим майстра активовано",
-    addPhotoLabel: "Додати фото (10-15 шт):",
-    addPhotoBtn: "+ Додати фото в роботу",
+    addPhotoLabel: "Вибрати фото з галереї:",
+    addPhotoBtn: "Завантажити фото",
     reviewsHeaderTitle: "Відгуки клієнтів",
     reviewsHeaderSub: "Залиште реальний відгук про нашу роботу",
     openReviewBtn: "+ Залишити відгук",
@@ -35,8 +39,8 @@ const uiTexts = {
     servicesTitle: "Our Services & Prices",
     masterBtn: "Master",
     masterActive: "Master mode active",
-    addPhotoLabel: "Add photo (10-15 pcs):",
-    addPhotoBtn: "+ Add photo",
+    addPhotoLabel: "Select photo from gallery:",
+    addPhotoBtn: "Upload photo",
     reviewsHeaderTitle: "Customer Reviews",
     reviewsHeaderSub: "Leave a real review about our work",
     openReviewBtn: "+ Leave a review",
@@ -54,8 +58,8 @@ const uiTexts = {
     servicesTitle: "Mūsų Paslaugos ir Kainos",
     masterBtn: "Meistras",
     masterActive: "Meistro režimas aktyvus",
-    addPhotoLabel: "Pridėti nuotrauką (10-15 vnt.):",
-    addPhotoBtn: "+ Pridėti nuotrauką",
+    addPhotoLabel: "Pasirinkti nuotrauką iš galerijos:",
+    addPhotoBtn: "Įkelti nuotrauką",
     reviewsHeaderTitle: "Klientų Atsiliepimai",
     reviewsHeaderSub: "Palikite realų atsiliepimą apie mūsų darbą",
     openReviewBtn: "+ Palikti atsiliepimą",
@@ -134,8 +138,8 @@ function renderServices() {
       ${isMasterLoggedIn ? `
         <div class="mt-4 border-t pt-3 bg-slate-50 p-2 rounded">
           <p class="text-xs text-slate-500 mb-1">${t.addPhotoLabel}</p>
-          <input type="text" id="input-${service.id}" placeholder="Вставте посилання на фото" class="w-full text-sm p-1.5 border rounded mb-2">
-          <button onclick="window.addPhotoToService('${service.id}')" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 rounded font-medium">
+          <input type="file" id="file-${service.id}" accept="image/*" class="w-full text-xs mb-2">
+          <button onclick="window.uploadPhotoToService('${service.id}')" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 rounded font-medium">
             ${t.addPhotoBtn}
           </button>
         </div>
@@ -147,6 +151,7 @@ function renderServices() {
   });
 }
 
+// Загрузка фото и привязка к конкретной услуге
 async function loadServicePhotos(serviceId) {
   try {
     const querySnapshot = await getDocs(collection(db, `service_${serviceId}`));
@@ -154,36 +159,91 @@ async function loadServicePhotos(serviceId) {
     if (!photoContainer) return;
 
     photoContainer.innerHTML = '';
+    let servicePhotosList = [];
+
     querySnapshot.forEach((doc) => {
-      const data = doc.data();
+      servicePhotosList.push(doc.data().url);
+    });
+
+    servicePhotosList.forEach((url, index) => {
       const img = document.createElement('img');
-      img.src = data.url;
+      img.src = url;
       img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
-      img.onclick = () => window.openImageViewer(data.url);
+      
+      // При клике открываем галерею именно этой услуги
+      img.onclick = () => window.openGallery(servicePhotosList, index);
       photoContainer.appendChild(img);
     });
   } catch (e) {
-    console.log("Error:", e);
+    console.log("Error loading photos:", e);
   }
 }
 
-window.addPhotoToService = async (serviceId) => {
-  const input = document.getElementById(`input-${serviceId}`);
-  const url = input.value.trim();
-  if (!url) return alert('Введіть посилання на фото!');
+// Загрузка файла с галереи телефона/ПК в Firebase Storage
+window.uploadPhotoToService = async (serviceId) => {
+  const fileInput = document.getElementById(`file-${serviceId}`);
+  const file = fileInput.files[0];
+  if (!file) return alert('Будь ласка, виберіть файл з галереї!');
 
   try {
+    const storageRef = ref(storage, `services/${serviceId}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+
     await addDoc(collection(db, `service_${serviceId}`), {
-      url: url,
+      url: downloadURL,
       createdAt: new Date()
     });
-    input.value = '';
+
+    fileInput.value = '';
     loadServicePhotos(serviceId);
+    alert('Фото успішно додано з галереї!');
   } catch (e) {
-    alert('Помилка: ' + e.message);
+    alert('Помилка завантаження: ' + e.message);
   }
 };
 
+// Открытие галереи и листание стрелками
+window.openGallery = (photosArray, startIndex) => {
+  activeServicePhotos = photosArray;
+  currentPhotoIndex = startIndex;
+  
+  const modal = document.getElementById('imageViewerModal');
+  modal.classList.remove('hidden');
+  updateGalleryView();
+};
+
+function updateGalleryView() {
+  const fullImg = document.getElementById('fullSizeImage');
+  const counter = document.getElementById('photoCounter');
+  
+  fullImg.src = activeServicePhotos[currentPhotoIndex];
+  counter.innerText = `${currentPhotoIndex + 1} / ${activeServicePhotos.length}`;
+}
+
+document.getElementById('prevPhotoBtn').onclick = (e) => {
+  e.stopPropagation();
+  currentPhotoIndex = (currentPhotoIndex - 1 + activeServicePhotos.length) % activeServicePhotos.length;
+  updateGalleryView();
+};
+
+document.getElementById('nextPhotoBtn').onclick = (e) => {
+  e.stopPropagation();
+  currentPhotoIndex = (currentPhotoIndex + 1) % activeServicePhotos.length;
+  updateGalleryView();
+};
+
+document.getElementById('closeViewerBtn').onclick = () => {
+  document.getElementById('imageViewerModal').classList.add('hidden');
+};
+
+document.getElementById('imageViewerModal').onclick = (e) => {
+  if (e.target.id === 'imageViewerModal') {
+    document.getElementById('imageViewerModal').classList.add('hidden');
+  }
+};
+
+// Отзывы и рейтинг
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
@@ -212,7 +272,6 @@ async function loadReviews() {
       count++;
 
       const stars = '★'.repeat(rev.rating) + '☆'.repeat(5 - rev.rating);
-      
       const item = document.createElement('div');
       item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200";
       item.innerHTML = `
@@ -231,7 +290,6 @@ async function loadReviews() {
     scoreText.innerText = `${avg} (${count}/5)`;
     graphic.className = "text-amber-400";
     graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
-
   } catch (e) {
     container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
   }
@@ -242,18 +300,10 @@ document.getElementById('submitReviewBtn').onclick = async () => {
   const rating = parseInt(document.getElementById('clientRatingInput').value);
   const comment = document.getElementById('clientCommentInput').value.trim();
 
-  if (!name || !comment) {
-    alert('Будь ласка, заповніть ім’я та текст відгуку.');
-    return;
-  }
+  if (!name || !comment) return alert('Будь ласка, заповніть ім’я та текст відгуку.');
 
   try {
-    await addDoc(collection(db, "client_reviews"), {
-      name,
-      rating,
-      comment,
-      createdAt: new Date()
-    });
+    await addDoc(collection(db, "client_reviews"), { name, rating, comment, createdAt: new Date() });
     document.getElementById('clientNameInput').value = '';
     document.getElementById('clientCommentInput').value = '';
     document.getElementById('reviewModal').classList.add('hidden');
@@ -282,7 +332,6 @@ document.getElementById('closeLoginModal').onclick = () => loginModal.classList.
 
 document.getElementById('submitMasterPass').onclick = () => {
   const pass = document.getElementById('masterPassInput').value.trim();
-  // Проверка по новым паролям 5399 и 225399
   if (MASTER_PASSWORDS.includes(pass)) {
     isMasterLoggedIn = true;
     loginModal.classList.add('hidden');
@@ -298,15 +347,6 @@ document.getElementById('submitMasterPass').onclick = () => {
 
 document.getElementById('openReviewModal').onclick = () => reviewModal.classList.remove('hidden');
 document.getElementById('closeReviewModal').onclick = () => reviewModal.classList.add('hidden');
-
-window.openImageViewer = (url) => {
-  const modal = document.getElementById('imageViewerModal');
-  document.getElementById('fullSizeImage').src = url;
-  modal.classList.remove('hidden');
-};
-document.getElementById('imageViewerModal').onclick = () => {
-  document.getElementById('imageViewerModal').classList.add('hidden');
-};
 
 document.getElementById('langSelect').onchange = (e) => {
   currentLang = e.target.value;
