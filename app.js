@@ -1,27 +1,10 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentLang = 'uk';
-const MASTER_PASSWORDS = ["5399", "225399"];
+let isMasterLoggedIn = false;
 
-function setMasterAuth(val) {
-  if (val) {
-    localStorage.setItem('plumbMasterAuth', 'true');
-    document.cookie = "plumbMasterAuth=true; max-age=" + (30 * 24 * 60 * 60) + "; path=/";
-  } else {
-    localStorage.removeItem('plumbMasterAuth');
-    document.cookie = "plumbMasterAuth=; max-age=0; path=/";
-  }
-}
-
-function checkMasterAuth() {
-  const local = localStorage.getItem('plumbMasterAuth') === 'true';
-  const cookie = document.cookie.split('; ').some(row => row.startsWith('plumbMasterAuth=true'));
-  return local || cookie;
-}
-
-let isMasterLoggedIn = checkMasterAuth();
-
+// Раздельные словари интерфейса
 const uiTexts = {
   uk: {
     heroTitle: "Професійні сантехнічні послуги",
@@ -31,8 +14,8 @@ const uiTexts = {
     servicesTitle: "Наші послуги та ціни",
     masterBtn: "Майстер",
     masterActive: "Режим майстра активовано",
-    addPhotoLabel: "Вибрати фото з галереї:",
-    addPhotoBtn: "Завантажити фото",
+    addPhotoLabel: "Додати фото (10-15 шт):",
+    addPhotoBtn: "+ Додати фото в роботу",
     reviewsHeaderTitle: "Відгуки клієнтів",
     reviewsHeaderSub: "Залиште реальний відгук про нашу роботу",
     openReviewBtn: "+ Залишити відгук",
@@ -51,8 +34,8 @@ const uiTexts = {
     servicesTitle: "Our Services & Prices",
     masterBtn: "Master",
     masterActive: "Master mode active",
-    addPhotoLabel: "Select photo from gallery:",
-    addPhotoBtn: "Upload photo",
+    addPhotoLabel: "Add photo (10-15 pcs):",
+    addPhotoBtn: "+ Add photo",
     reviewsHeaderTitle: "Customer Reviews",
     reviewsHeaderSub: "Leave a real review about our work",
     openReviewBtn: "+ Leave a review",
@@ -66,20 +49,20 @@ const uiTexts = {
   lt: {
     heroTitle: "Profesionalios Santechnikos Paslaugos",
     heroSubtitle: "Projektavimas, šildymo sistemų montavimas, vandentiekis ir kokybiškas santechnikos remontas",
-    callBtn: "Skambinti",
+    callBtn: "📞 Skambinti",
     reviewsCount: "Realūs klientų atsiliepimai",
     servicesTitle: "Mūsų Paslaugos ir Kainos",
     masterBtn: "Meistras",
     masterActive: "Meistro režimas aktyvus",
-    addPhotoLabel: "Pasirinkti nuotrauką iš galerijos:",
-    addPhotoBtn: "Įkelti nuotrauką",
+    addPhotoLabel: "Pridėti nuotrauką (10-15 vnt.):",
+    addPhotoBtn: "+ Pridėti nuotrauką",
     reviewsHeaderTitle: "Klientų Atsiliepimai",
     reviewsHeaderSub: "Palikite realų atsiliepimą apie mūsų darbą",
     openReviewBtn: "+ Palikti atsiliepimą",
     modalReviewTitle: "Jūsų Atsiliepimas",
     namePlaceholder: "Jūsų vardas",
     commentPlaceholder: "Atsiliepimo tekstas...",
-    sendBtn: "Siūsti",
+    sendBtn: "Siųsti",
     cancelBtn: "Atšaukti",
     reviewsWord: "atsiliepimų"
   }
@@ -94,7 +77,7 @@ const servicesData = [
   { id: "ventilation", uk: "Монтаж вентиляційних систем", en: "Ventilation systems installation", lt: "Ventiliacijos sistemų montavimas", price: { uk: "запитати ціну", en: "ask for price", lt: "klausti kainos" } },
   { id: "drain_sewer", uk: "Монтаж мереж зливної каналізації", en: "Storm drainage networks installation", lt: "Lietaus kanalizacijos tinklų montavimas", price: { uk: "від 300 €", en: "from 300 €", lt: "nuo 300 €" } },
   { id: "heating_design", uk: "Проектування систем опалення", en: "Heating systems design", lt: "Šildymo sistemų projektavimas", price: { uk: "від 400 € / проєкт", en: "from 400 € / project", lt: "nuo 400 € / projektas" } },
-  { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: { uk: "від 25 €", en: "from 25 €", lt: "nuo 25 €" } },
+  { id: "drainage", uk: "Встановлення дренажу", en: "Drainage installation", lt: "Drenažo įrengimas", price: { uk: "від 15 € / місяць", en: "from 15 € / month", lt: "nuo 15 € / mėn." } },
   { id: "small_jobs", uk: "Дрібні сантехнічні роботи", en: "Small plumbing works", lt: "Smulkūs santechnikos darbai", price: { uk: "від 50 €", en: "from 50 €", lt: "nuo 50 €" } },
   { id: "heat_pumps", uk: "Встановлення теплових насосів", en: "Heat pumps installation", lt: "Šilumos siurblių montavimas", price: { uk: "від 600 € / проєкт", en: "from 600 € / project", lt: "nuo 600 € / projektas" } },
   { id: "underfloor", uk: "Монтаж теплих підлог", en: "Underfloor heating installation", lt: "Grindinio šildymo montavimas", price: { uk: "від 4 € / м²", en: "from 4 € / m²", lt: "nuo 4 € / m²" } },
@@ -119,15 +102,7 @@ function updateTexts() {
   document.getElementById('reviewsCountText').innerText = t.reviewsCount;
   document.getElementById('servicesTitle').innerText = t.servicesTitle;
   document.getElementById('masterLoginBtn').innerText = isMasterLoggedIn ? "Вийти" : t.masterBtn;
-  
-  const adminBadge = document.getElementById('adminBadge');
-  if (isMasterLoggedIn) {
-    adminBadge.classList.remove('hidden');
-    adminBadge.innerText = t.masterActive;
-  } else {
-    adminBadge.classList.add('hidden');
-  }
-
+  document.getElementById('adminBadge').innerText = t.masterActive;
   document.getElementById('reviewsHeaderTitle').innerText = t.reviewsHeaderTitle;
   document.getElementById('reviewsHeaderSub').innerText = t.reviewsHeaderSub;
   document.getElementById('openReviewModal').innerText = t.openReviewBtn;
@@ -154,14 +129,14 @@ function renderServices() {
       <div>
         <h3 class="font-bold text-lg text-slate-900 mb-2">${title}</h3>
         <p class="text-cyan-600 font-bold mb-4">${priceText}</p>
-        <div id="photos-${service.id}" class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none" style="scroll-snap-type: x mandatory;"></div>
+        <div id="photos-${service.id}" class="grid grid-cols-3 gap-2 mb-4"></div>
       </div>
       
       ${isMasterLoggedIn ? `
         <div class="mt-4 border-t pt-3 bg-slate-50 p-2 rounded">
           <p class="text-xs text-slate-500 mb-1">${t.addPhotoLabel}</p>
-          <input type="file" id="file-${service.id}" accept="image/*" class="w-full text-xs mb-2">
-          <button onclick="window.uploadPhotoToService('${service.id}')" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 rounded font-medium">
+          <input type="text" id="input-${service.id}" placeholder="Вставте посилання на фото" class="w-full text-sm p-1.5 border rounded mb-2">
+          <button onclick="window.addPhotoToService('${service.id}')" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 rounded font-medium">
             ${t.addPhotoBtn}
           </button>
         </div>
@@ -180,180 +155,54 @@ async function loadServicePhotos(serviceId) {
     if (!photoContainer) return;
 
     photoContainer.innerHTML = '';
-    let servicePhotosList = [];
-    let photoDocs = [];
-
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.url) {
-        servicePhotosList.push(data.url);
-        photoDocs.push({ id: docSnap.id, url: data.url });
-      }
-    });
-
-    if (servicePhotosList.length === 0) {
-      photoContainer.style.display = 'none';
-      return;
-    } else {
-      photoContainer.style.display = 'flex';
-    }
-
-    photoDocs.forEach((item, index) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = "relative flex-shrink-0 w-48 h-32 scroll-snap-align-start";
-
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
       const img = document.createElement('img');
-      img.src = item.url;
-      img.className = "w-full h-full object-cover rounded-lg shadow-sm border cursor-pointer hover:opacity-90 transition";
-      img.onclick = () => window.openGallery(servicePhotosList, index);
-      wrapper.appendChild(img);
-
-      if (index === 0 && servicePhotosList.length > 1) {
-        const badge = document.createElement('div');
-        badge.className = "absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center pointer-events-none";
-        badge.innerHTML = `<span class="text-white text-lg font-bold bg-black/60 px-3 py-1 rounded-full shadow">+${servicePhotosList.length - 1}</span>`;
-        wrapper.appendChild(badge);
-      }
-
-      if (isMasterLoggedIn) {
-        const btn = document.createElement('button');
-        btn.innerHTML = "&times;";
-        btn.className = "absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow font-bold z-10";
-        btn.title = "Видалити фото";
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          if (confirm("Видалити це фото?")) {
-            try {
-              await deleteDoc(doc(db, `service_${serviceId}`, item.id));
-              location.reload();
-            } catch (err) {
-              alert("Помилка видалення: " + err.message);
-            }
-          }
-        };
-        wrapper.appendChild(btn);
-      }
-
-      photoContainer.appendChild(wrapper);
+      img.src = data.url;
+      img.className = "w-full h-20 object-cover rounded shadow-sm border cursor-pointer hover:opacity-80 transition transform hover:scale-105";
+      img.onclick = () => window.openImageViewer(data.url);
+      photoContainer.appendChild(img);
     });
   } catch (e) {
-    console.log("Error loading photos:", e);
+    console.log("Error:", e);
   }
 }
 
-function compressImage(file, callback) {
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    const img = new Image();
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-      const maxDim = 1000;
+window.addPhotoToService = async (serviceId) => {
+  const input = document.getElementById(`input-${serviceId}`);
+  const url = input.value.trim();
+  if (!url) return alert('Введіть посилання на фото!');
 
-      if (width > height && width > maxDim) {
-        height = Math.round((height * maxDim) / width);
-        width = maxDim;
-      } else if (height > maxDim) {
-        width = Math.round((width * maxDim) / height);
-        height = maxDim;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-
-      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-      callback(compressedBase64);
-    };
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-window.uploadPhotoToService = async (serviceId) => {
-  const fileInput = document.getElementById(`file-${serviceId}`);
-  const file = fileInput.files[0];
-  if (!file) return alert('Будь ласка, виберіть файл з галереї!');
-
-  compressImage(file, async (compressedUrl) => {
-    try {
-      await addDoc(collection(db, `service_${serviceId}`), {
-        url: compressedUrl,
-        createdAt: new Date()
-      });
-      location.reload();
-    } catch (e) {
-      alert('Помилка збереження в базу: ' + e.message);
-    }
-  });
-};
-
-let activeServicePhotos = [];
-let currentPhotoIndex = 0;
-
-window.openGallery = (photosArray, startIndex) => {
-  activeServicePhotos = photosArray;
-  currentPhotoIndex = startIndex;
-  
-  const modal = document.getElementById('imageViewerModal');
-  modal.classList.remove('hidden');
-  updateGalleryView();
-};
-
-function updateGalleryView() {
-  const fullImg = document.getElementById('fullSizeImage');
-  const counter = document.getElementById('photoCounter');
-  
-  fullImg.src = activeServicePhotos[currentPhotoIndex];
-  counter.innerText = `${currentPhotoIndex + 1} / ${activeServicePhotos.length}`;
-}
-
-document.getElementById('prevPhotoBtn').onclick = (e) => {
-  e.stopPropagation();
-  currentPhotoIndex = (currentPhotoIndex - 1 + activeServicePhotos.length) % activeServicePhotos.length;
-  updateGalleryView();
-};
-
-document.getElementById('nextPhotoBtn').onclick = (e) => {
-  e.stopPropagation();
-  currentPhotoIndex = (currentPhotoIndex + 1) % activeServicePhotos.length;
-  updateGalleryView();
-};
-
-document.getElementById('closeViewerBtn').onclick = () => {
-  document.getElementById('imageViewerModal').classList.add('hidden');
-};
-
-document.getElementById('imageViewerModal').onclick = (e) => {
-  if (e.target.id === 'imageViewerModal') {
-    document.getElementById('imageViewerModal').classList.add('hidden');
+  try {
+    await addDoc(collection(db, `service_${serviceId}`), {
+      url: url,
+      createdAt: new Date()
+    });
+    input.value = '';
+    loadServicePhotos(serviceId);
+  } catch (e) {
+    alert('Помилка: ' + e.message);
   }
 };
 
-// Загрузка отзывов (вывод точного количества и даты со временем)
+// Загрузка отзывов: неограниченный подсчет + точное время
 async function loadReviews() {
   const container = document.getElementById('reviewsContainer');
   const scoreText = document.getElementById('averageScoreText');
   const graphic = document.getElementById('starRatingGraphic');
   const t = uiTexts[currentLang];
 
-  if (container) {
-    container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
-  }
+  container.innerHTML = '<p class="text-sm text-slate-400">Завантаження відгуків...</p>';
 
   try {
     const querySnapshot = await getDocs(collection(db, "client_reviews"));
-    if (container) container.innerHTML = '';
+    container.innerHTML = '';
 
     if (querySnapshot.empty) {
-      if (container) container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
-      if (scoreText) scoreText.innerText = `0.0 (0 ${t.reviewsWord})`;
-      if (graphic) {
-        graphic.className = "text-slate-500";
-        graphic.innerText = "☆☆☆☆☆";
-      }
+      container.innerHTML = '<p class="text-sm text-slate-500">Поки немає відгуків. Станьте першим!</p>';
+      scoreText.innerText = `0.0 (0 ${t.reviewsWord})`;
+      graphic.className = "text-slate-500";
+      graphic.innerText = "☆☆☆☆☆";
       return;
     }
 
@@ -379,50 +228,45 @@ async function loadReviews() {
           minute: '2-digit'
         });
       } else {
-        // Если дата в базе отсутствовала для старого отзыва
         formattedDate = new Date().toLocaleDateString();
       }
 
-      if (container) {
-        const item = document.createElement('div');
-        item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200 mb-3";
-        item.innerHTML = `
-          <div class="flex justify-between items-center mb-1">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
-              <span class="text-xs text-slate-400 font-normal">(${formattedDate})</span>
-            </div>
-            <span class="text-amber-400 text-sm">${stars}</span>
+      const item = document.createElement('div');
+      item.className = "p-4 bg-slate-50 rounded-xl border border-slate-200 mb-2";
+      item.innerHTML = `
+        <div class="flex justify-between items-center mb-1">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-slate-900 text-sm">${rev.name}</span>
+            <span class="text-xs text-slate-400">(${formattedDate})</span>
           </div>
-          <p class="text-slate-700 text-sm mt-1">${rev.comment}</p>
-        `;
-        container.appendChild(item);
-      }
+          <span class="text-amber-400 text-sm">${stars}</span>
+        </div>
+        <p class="text-slate-700 text-sm">${rev.comment}</p>
+      `;
+      container.appendChild(item);
     });
 
     const avg = (totalRating / count).toFixed(1);
     const roundedAvg = Math.round(avg);
 
-    // Прямой вывод количества без формата /5
-    if (scoreText) {
-      scoreText.innerText = `${avg} (${count} ${t.reviewsWord})`;
-    }
-    if (graphic) {
-      graphic.className = "text-amber-400 text-xl";
-      graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
-    }
+    scoreText.innerText = `${avg} (${count} ${t.reviewsWord})`;
+    graphic.className = "text-amber-400";
+    graphic.innerText = '★'.repeat(roundedAvg) + '☆'.repeat(5 - roundedAvg);
+
   } catch (e) {
-    if (container) container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
+    container.innerHTML = '<p class="text-sm text-red-500">Не вдалося завантажити відгуки.</p>';
   }
 }
 
-// Отправка отзыва
 document.getElementById('submitReviewBtn').onclick = async () => {
   const name = document.getElementById('clientNameInput').value.trim();
   const rating = parseInt(document.getElementById('clientRatingInput').value);
   const comment = document.getElementById('clientCommentInput').value.trim();
 
-  if (!name || !comment) return alert('Будь ласка, заповніть ім’я та текст відгуку.');
+  if (!name || !comment) {
+    alert('Будь ласка, заповніть ім’я та текст відгуку.');
+    return;
+  }
 
   try {
     await addDoc(collection(db, "client_reviews"), {
@@ -447,7 +291,7 @@ const reviewModal = document.getElementById('reviewModal');
 document.getElementById('masterLoginBtn').onclick = () => {
   if (isMasterLoggedIn) {
     isMasterLoggedIn = false;
-    setMasterAuth(false);
+    document.getElementById('adminBadge').classList.add('hidden');
     updateTexts();
     renderServices();
   } else {
@@ -459,10 +303,10 @@ document.getElementById('closeLoginModal').onclick = () => loginModal.classList.
 
 document.getElementById('submitMasterPass').onclick = () => {
   const pass = document.getElementById('masterPassInput').value.trim();
-  if (MASTER_PASSWORDS.includes(pass)) {
+  if (pass === '1234' || pass === '5678' || pass === '5399' || pass === '225399') {
     isMasterLoggedIn = true;
-    setMasterAuth(true);
     loginModal.classList.add('hidden');
+    document.getElementById('adminBadge').classList.remove('hidden');
     document.getElementById('masterPassInput').value = '';
     updateTexts();
     renderServices();
@@ -474,6 +318,15 @@ document.getElementById('submitMasterPass').onclick = () => {
 
 document.getElementById('openReviewModal').onclick = () => reviewModal.classList.remove('hidden');
 document.getElementById('closeReviewModal').onclick = () => reviewModal.classList.add('hidden');
+
+window.openImageViewer = (url) => {
+  const modal = document.getElementById('imageViewerModal');
+  document.getElementById('fullSizeImage').src = url;
+  modal.classList.remove('hidden');
+};
+document.getElementById('imageViewerModal').onclick = () => {
+  document.getElementById('imageViewerModal').classList.add('hidden');
+};
 
 document.getElementById('langSelect').onchange = (e) => {
   currentLang = e.target.value;
